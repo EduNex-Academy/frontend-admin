@@ -84,13 +84,7 @@ export const authApi = {
      * Refresh access token using HttpOnly cookie
      */
     refreshTokenWithCookie: async (): Promise<AuthResponse> => {
-        try {
-            const response = await apiClient.post<AuthResponse>(authConfig.endpoints.refreshToken)
-            return response.data
-        } catch (error: any) {
-            const message = error.response?.data?.message || 'Token refresh failed'
-            throw new Error(message)
-        }
+        return TokenManager.refreshTokenWithCookie()
     },
 
     /**
@@ -126,25 +120,46 @@ export const authApi = {
     },
 
     /**
-     * Request password reset
+     * Send password reset email
      */
-    requestPasswordReset: async (email: string): Promise<void> => {
+    sendPasswordReset: async (email: string): Promise<void> => {
         try {
-            await apiClient.post('/auth/request-password-reset', { email })
+            await apiClient.post(authConfig.endpoints.sendPasswordReset, { 
+                email, 
+                userRole: 'ADMIN' 
+            })
         } catch (error: any) {
+            if (error.response?.status === 400) {
+                throw new Error('Invalid email format')
+            } else if (error.response?.status === 404) {
+                throw new Error('User not found')
+            } else if (error.response?.status === 500) {
+                throw new Error('Email service error')
+            }
             const message = error.response?.data?.message || 'Password reset request failed'
             throw new Error(message)
         }
     },
 
     /**
-     * Reset password
+     * Change user's password
      */
-    resetPassword: async (token: string, newPassword: string): Promise<void> => {
+    changePassword: async (oldPassword: string, newPassword: string, confirmPassword: string): Promise<void> => {
         try {
-            await apiClient.post('/auth/reset-password', { token, newPassword })
+            await apiClient.post(authConfig.endpoints.changePassword, {
+                oldPassword,
+                newPassword,
+                confirmPassword
+            })
         } catch (error: any) {
-            const message = error.response?.data?.message || 'Password reset failed'
+            if (error.response?.status === 400) {
+                throw new Error('Invalid password or validation failed')
+            } else if (error.response?.status === 401) {
+                throw new Error('Unauthorized - invalid or missing token')
+            } else if (error.response?.status === 403) {
+                throw new Error('Current password incorrect')
+            }
+            const message = error.response?.data?.message || 'Password change failed'
             throw new Error(message)
         }
     },

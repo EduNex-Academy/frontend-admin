@@ -14,12 +14,34 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import { authApi } from "@/lib/api/auth"
 import { SessionTokenManager } from "@/lib/session-token-manager"
-import { LogOut, Settings, User } from "lucide-react"
+import { LogOut, Settings, User, KeyRound } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 export function UserNav() {
   const { user, logout } = useAuth()
   const router = useRouter()
+  const [imageError, setImageError] = useState(false)
+
+  // Reset image state when user changes
+  useEffect(() => {
+    setImageError(false)
+  }, [user?.profilePictureUrl])
+
+  // Function to get properly formatted Google profile image URL
+  const getProfileImageUrl = (url: string | undefined) => {
+    if (!url) return null
+    
+    // If it's a Google profile image, ensure it has proper size parameter
+    if (url.includes('googleusercontent.com')) {
+      const baseUrl = url.split('=')[0]
+      return `${baseUrl}=s96-c`
+    }
+    
+    return url
+  }
+
+  const profileImageUrl = getProfileImageUrl(user?.profilePictureUrl)
 
   const handleLogout = async () => {
     try {
@@ -43,11 +65,22 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-full justify-start">
           <Avatar className="h-8 w-8 mr-2">
-            <AvatarImage src="/placeholder.svg?height=32&width=32" alt="Avatar" />
-            <AvatarFallback>{user?.username?.[0] || user?.email?.[0] || "A"}</AvatarFallback>
+            {profileImageUrl && !imageError ? (
+              <img 
+                src={profileImageUrl} 
+                alt="Avatar"
+                className="aspect-square h-full w-full rounded-full object-cover"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={() => setImageError(true)}
+              />
+            ) : null}
+            <AvatarFallback>
+              {user?.firstName?.[0] || user?.email?.[0] || "A"}
+            </AvatarFallback>
           </Avatar>
           <div className="flex flex-col space-y-1 text-left">
-            <p className="text-sm font-medium leading-none">{user?.username || "Admin"}</p>
+            <p className="text-sm font-medium leading-none">{user?.firstName || "Admin"}</p>
             <p className="text-xs leading-none text-muted-foreground">{user?.email || "admin@example.com"}</p>
           </div>
         </Button>
@@ -64,6 +97,10 @@ export function UserNav() {
           <DropdownMenuItem>
             <User className="mr-2 h-4 w-4" />
             <span>Profile</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => router.push('/change-password')}>
+            <KeyRound className="mr-2 h-4 w-4" />
+            <span>Change Password</span>
           </DropdownMenuItem>
           <DropdownMenuItem>
             <Settings className="mr-2 h-4 w-4" />

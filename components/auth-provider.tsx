@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, ReactNode } from "react"
+import { useEffect, ReactNode, useRef } from "react"
 import { useAuth } from "@/hooks/use-auth"
 import { authApi } from "@/lib/api/auth"
 import { setAuthStateGetter } from "@/lib/api/config"
@@ -13,6 +13,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const authState = useAuth()
   const { setInitialized, updateTokens, logout, login } = authState
+  const isInitializingRef = useRef(false)
 
   // Set up auth state getter for API client
   useEffect(() => {
@@ -20,36 +21,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [authState])
 
   useEffect(() => {
-    const initializeAuth = async () => {
-      try {
-        // First, check if we have a valid access token in sessionStorage
-        const sessionToken = SessionTokenManager.getAccessToken()
-        if (sessionToken) {
-          // We have a valid access token, but we still need user info
-          // Try to refresh to get the latest user info and token
-          try {
-            const authResponse = await authApi.refreshTokenWithCookie()
-            updateTokens({
-              accessToken: authResponse.accessToken,
-              tokenType: authResponse.tokenType,
-              expiresIn: authResponse.expiresIn,
-              user: authResponse.user
-            })
-            // Update session storage with new token
-            SessionTokenManager.setAccessToken(
-              authResponse.accessToken,
-              authResponse.tokenType,
-              authResponse.expiresIn
-            )
-            return
-          } catch (refreshError) {
-            // Refresh failed, clear session storage and try with existing token
-            SessionTokenManager.clearAccessToken()
-            console.log("Refresh failed, trying with session token")
-          }
-        }
+    // Prevent multiple initialization attempts
+    if (isInitializingRef.current || authState.isInitialized) {
+      return
+    }
 
-        // If no session token or refresh failed, try to refresh with HttpOnly cookie
+    const initializeAuth = async () => {
+      isInitializingRef.current = true
+      
+      try {
+        // Try to refresh with HttpOnly cookie to get latest user info and token
         const authResponse = await authApi.refreshTokenWithCookie()
         
         // If successful, update auth state with new tokens
@@ -74,11 +55,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } finally {
         // Mark auth as initialized regardless of success/failure
         setInitialized(true)
+        isInitializingRef.current = false
       }
     }
 
     initializeAuth()
-  }, [setInitialized, updateTokens, logout, login])
+  }, [setInitialized, updateTokens, logout, login, authState.isInitialized])
 
   // Listen for auth state changes to update session storage
   useEffect(() => {

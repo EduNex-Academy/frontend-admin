@@ -18,5 +18,7 @@ export const authConfig = {
     register: '/auth/register',
     logout: '/auth/logout',
     refreshToken: '/auth/refresh',
+    sendPasswordReset: '/auth/send-password-reset',
+    changePassword: '/auth/change-password',
   }
 } as const

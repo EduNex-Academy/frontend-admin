@@ -14,6 +14,8 @@ import { api } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { SessionTokenManager } from "@/lib/session-token-manager"
+import { validatePassword, isPasswordValid } from "@/lib/utils"
+import { PasswordRequirements } from "@/components/ui/password-requirements"
 
 export function SignupForm() {
   const [firstName, setFirstName] = useState("")
@@ -29,27 +31,6 @@ export function SignupForm() {
   const router = useRouter()
   const { toast } = useToast()
 
-  // Password validation rules
-  const validatePassword = (password: string): string[] => {
-    const errors: string[] = []
-    if (password.length < 8) {
-      errors.push("At least 8 characters long")
-    }
-    if (!/[A-Z]/.test(password)) {
-      errors.push("At least one uppercase letter")
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push("At least one lowercase letter")
-    }
-    if (!/\d/.test(password)) {
-      errors.push("At least one number")
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      errors.push("At least one special character")
-    }
-    return errors
-  }
-
   const handlePasswordChange = (value: string) => {
     setPassword(value)
     const errors = validatePassword(value)
@@ -60,8 +41,7 @@ export function SignupForm() {
     e.preventDefault()
 
     // Validate password
-    const passwordValidationErrors = validatePassword(password)
-    if (passwordValidationErrors.length > 0) {
+    if (!isPasswordValid(password)) {
       toast({
         title: "Password Error",
         description: "Please ensure your password meets all requirements",
@@ -210,36 +190,7 @@ export function SignupForm() {
               className="h-9"
               required
             />
-            <div className="mt-1 p-1.5 bg-gray-50/50 rounded">
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <li className={`text-xs flex items-center ${password.length >= 8 ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="mr-1 text-xs">{password.length >= 8 ? '✓' : '✗'}</span>
-                  At least 8 characters
-                </li>
-                <li className={`text-xs flex items-center ${/[A-Z]/.test(password) ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="mr-1 text-xs">{/[A-Z]/.test(password) ? '✓' : '✗'}</span>
-                  At least one uppercase letter
-                </li>
-                <li className={`text-xs flex items-center ${/[a-z]/.test(password) ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="mr-1 text-xs">{/[a-z]/.test(password) ? '✓' : '✗'}</span>
-                  At least one lowercase letter
-                </li>
-                <li className={`text-xs flex items-center ${/\d/.test(password) ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="mr-1 text-xs">{/\d/.test(password) ? '✓' : '✗'}</span>
-                  At least one number
-                </li>
-                <li className={`text-xs flex items-center ${/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) ? 'text-green-600' : 'text-red-600'}`}>
-                  <span className="mr-1 text-xs">{/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password) ? '✓' : '✗'}</span>
-                  At least one special character
-                </li>
-                {!/[A-Z]/.test(password) && password.length > 0 && (
-                  <li className="text-xs flex items-center text-yellow-600 col-span-2">
-                    <span className="mr-1 text-xs">!</span>
-                    Your password does not contain an uppercase letter.
-                  </li>
-                )}
-              </ul>
-            </div>
+            <PasswordRequirements password={password} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="confirm-password" className="text-sm">Confirm Password</Label>

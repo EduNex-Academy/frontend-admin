@@ -102,7 +102,7 @@ export function LoginForm() {
           <div className="space-y-1">
             <div className="flex items-center">
               <Label htmlFor="password" className="text-sm">Password</Label>
-              <Link href="#" className="ml-auto inline-block text-xs underline">
+              <Link href="/forgot-password" className="ml-auto inline-block text-xs underline">
                 Forgot your password?
               </Link>
             </div>

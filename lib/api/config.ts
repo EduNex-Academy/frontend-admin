@@ -28,6 +28,25 @@ export const apiClient = axios.create({
 // Store for auth state access (will be set by AuthProvider)
 let getAuthState: (() => AuthState) | null = null
 
+// Track ongoing refresh attempts to prevent concurrent refreshes
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value: any) => void
+  reject: (reason: any) => void
+}> = []
+
+const processQueue = (error: any, token: string | null = null) => {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error)
+    } else {
+      resolve(token)
+    }
+  })
+  
+  failedQueue = []
+}
+
 export const setAuthStateGetter = (getter: () => AuthState) => {
   getAuthState = getter
 }
@@ -59,19 +78,39 @@ apiClient.interceptors.response.use(
 
     // Handle 401 Unauthorized errors
     if (error.response?.status === 401 && !originalRequest._retry) {
+      
+      if (isRefreshing) {
+        // If refresh is already in progress, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        }).then(token => {
+          originalRequest.headers.Authorization = `Bearer ${token}`
+          return apiClient(originalRequest)
+        }).catch(err => {
+          return Promise.reject(err)
+        })
+      }
+
       originalRequest._retry = true
+      isRefreshing = true
       
       if (getAuthState) {
         const authState = getAuthState()
         
         try {
           // Try to refresh token using HttpOnly cookie
-          const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, {
-            withCredentials: true,
-            headers: { 'Content-Type': 'application/json' }
+          // Use fetch directly to avoid circular dependency with apiClient
+          const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include'
           })
           
-          const newAuthData = response.data
+          if (!response.ok) {
+            throw new Error('Token refresh failed')
+          }
+          
+          const newAuthData = await response.json()
           
           // Update auth state with new tokens
           authState.updateTokens({
@@ -81,6 +120,9 @@ apiClient.interceptors.response.use(
             user: newAuthData.user
           })
 
+          // Process queued requests with new token
+          processQueue(null, newAuthData.accessToken)
+
           // Update the failed request with new token
           originalRequest.headers.Authorization = `${newAuthData.tokenType || 'Bearer'} ${newAuthData.accessToken}`
           
@@ -89,12 +131,17 @@ apiClient.interceptors.response.use(
           
         } catch (refreshError) {
           console.error('Token refresh failed:', refreshError)
+          // Process queued requests with error
+          processQueue(refreshError, null)
           // Clear auth state and redirect to login
           authState.logout()
           window.location.href = '/login'
+        } finally {
+          isRefreshing = false
         }
       } else {
         // No auth state available, redirect to login
+        isRefreshing = false
         window.location.href = '/login'
       }
     }
